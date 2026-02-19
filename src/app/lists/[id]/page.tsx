@@ -2,12 +2,16 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Download,
+  Mail,
   ExternalLink,
   ChevronRight,
   Loader2,
+  Check,
+  Trash2,
 } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import { Lead, LeadList } from "@/lib/types";
@@ -19,10 +23,14 @@ export default function ListDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const [list, setList] = useState<LeadList | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [emailing, setEmailing] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [deletingList, setDeletingList] = useState(false);
 
   useEffect(() => {
     async function fetchListDetail() {
@@ -67,6 +75,69 @@ export default function ListDetailPage({
     exportLeadsToCSV(leads, `${safeName}.csv`);
   }
 
+  async function handleEmail() {
+    if (!list || leads.length === 0) return;
+    const stored = localStorage.getItem("scraper-settings");
+    const settings = stored ? JSON.parse(stored) : {};
+    const recipientEmail = settings.recipientEmail;
+
+    if (!recipientEmail) {
+      setError("No recipient email configured. Add one in Settings.");
+      return;
+    }
+
+    setEmailing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leads,
+          listName: list.name,
+          resendApiKey: settings.resendApiKey || undefined,
+          recipientEmail,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+
+      setEmailSent(true);
+      setTimeout(() => setEmailSent(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send email");
+    } finally {
+      setEmailing(false);
+    }
+  }
+
+  async function handleDeleteList() {
+    if (!confirm("Delete this list? This cannot be undone.")) return;
+    setDeletingList(true);
+    setError(null);
+    try {
+      const stored = localStorage.getItem("scraper-settings");
+      const settings = stored ? JSON.parse(stored) : {};
+      const qp = new URLSearchParams();
+      if (settings.supabaseUrl) qp.set("supabaseUrl", settings.supabaseUrl);
+      if (settings.supabaseAnonKey) qp.set("supabaseAnonKey", settings.supabaseAnonKey);
+
+      const res = await fetch(`/api/lists/${id}?${qp.toString()}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      localStorage.removeItem("scraper-dashboard-leads");
+      router.push("/lists");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete list");
+      setDeletingList(false);
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-[family-name:var(--font-geist-sans)]">
       <Sidebar />
@@ -88,14 +159,42 @@ export default function ListDetailPage({
               </p>
             </div>
           </div>
-          <button
-            onClick={handleExportCSV}
-            disabled={leads.length === 0}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeleteList}
+              disabled={deletingList || loading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-sm font-medium rounded-lg transition-colors border border-red-500/20 disabled:opacity-50"
+            >
+              {deletingList ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {deletingList ? "Deleting..." : "Delete"}
+            </button>
+            <button
+              onClick={handleEmail}
+              disabled={leads.length === 0 || emailing}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300 hover:text-white text-sm font-medium rounded-lg transition-colors border border-gray-700"
+            >
+              {emailing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : emailSent ? (
+                <Check className="w-4 h-4 text-green-400" />
+              ) : (
+                <Mail className="w-4 h-4" />
+              )}
+              {emailing ? "Sending..." : emailSent ? "Sent!" : "Email"}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={leads.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+          </div>
         </header>
 
         {error && (

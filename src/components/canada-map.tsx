@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-// @ts-expect-error — raw JS module from react-canada-map
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import drawDetails from "@/data/canada-svg-details";
 import provincesData from "@/data/canada-provinces.json";
 

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { fetchLiquiditySignals } from "@/lib/exa";
 import { getSupabaseClient } from "@/lib/supabase";
 import { leadsResponseSchema } from "@/lib/types";
+import { generateCSVString } from "@/lib/csv";
+import { sendLeadsEmail } from "@/lib/email";
 
 const requestSchema = z.object({
   exaApiKey: z.string().optional(),
@@ -12,6 +14,8 @@ const requestSchema = z.object({
   supabaseUrl: z.string().optional(),
   supabaseAnonKey: z.string().optional(),
   maxResults: z.number().min(5).max(25).optional(),
+  resendApiKey: z.string().optional(),
+  recipientEmail: z.string().email().optional(),
 });
 
 const MAX_SEARCH_TIME_MS = 5 * 60 * 1000; // 5 minutes
@@ -59,14 +63,14 @@ export async function POST(req: Request) {
 
       try {
         const body = await req.json().catch(() => ({}));
-        const { exaApiKey, geminiApiKey, referenceUrls, supabaseUrl, supabaseAnonKey, maxResults } =
+        const { exaApiKey, geminiApiKey, referenceUrls, supabaseUrl, supabaseAnonKey, maxResults, resendApiKey, recipientEmail } =
           requestSchema.parse(body);
 
         const resultLimit = maxResults ?? 10;
         const startTime = Date.now();
 
         // Step 1: Exa search
-        sendEvent("progress", { step: 1, total: 4, message: "Searching Exa for liquidity signals..." });
+        sendEvent("progress", { step: 1, total: 5, message: "Searching Exa for liquidity signals..." });
 
         const { text: signalsText, validUrls } = await fetchLiquiditySignals({ exaApiKey, referenceUrls });
 
@@ -97,9 +101,9 @@ export async function POST(req: Request) {
           const still_need = resultLimit - allVerified.length;
 
           if (attempt === 1) {
-            sendEvent("progress", { step: 2, total: 4, message: "Analyzing results with Gemini AI..." });
+            sendEvent("progress", { step: 2, total: 5, message: "Analyzing results with Gemini AI..." });
           } else {
-            sendEvent("progress", { step: 2, total: 4, message: `Found ${allVerified.length}/${resultLimit} verified leads. Searching for ${still_need} more (attempt ${attempt})...` });
+            sendEvent("progress", { step: 2, total: 5, message: `Found ${allVerified.length}/${resultLimit} verified leads. Searching for ${still_need} more (attempt ${attempt})...` });
           }
 
           // Build exclusion list for retry prompts
@@ -154,7 +158,7 @@ export async function POST(req: Request) {
           completionNote = hitTimeout ? " (timed out)" : " (max attempts reached)";
         }
 
-        sendEvent("progress", { step: 3, total: 4, message: `Verified ${allVerified.length}/${resultLimit} leads${completionNote}. Saving to database...` });
+        sendEvent("progress", { step: 3, total: 5, message: `Verified ${allVerified.length}/${resultLimit} leads${completionNote}. Saving to database...` });
 
         // Step 3: Persist to Supabase
         let listId: string | null = null;
@@ -222,7 +226,27 @@ export async function POST(req: Request) {
           console.error("Supabase persistence error:", dbError);
         }
 
-        sendEvent("progress", { step: 4, total: 4, message: "Done!" });
+        // Step 4: Email CSV
+        const emailApiKey = resendApiKey || process.env.RESEND_API_KEY;
+        if (emailApiKey && recipientEmail && allVerified.length > 0) {
+          sendEvent("progress", { step: 4, total: 5, message: "Emailing CSV report..." });
+          try {
+            const listName = `Generate Run - ${new Date().toLocaleString()}`;
+            const csvString = generateCSVString(allVerified);
+            await sendLeadsEmail({
+              resendApiKey: emailApiKey,
+              recipientEmail,
+              csvString,
+              listName,
+              leadCount: allVerified.length,
+            });
+          } catch (emailError) {
+            console.error("Email send error:", emailError);
+            sendEvent("progress", { step: 4, total: 5, message: `Email failed: ${emailError instanceof Error ? emailError.message : "Unknown error"}` });
+          }
+        }
+
+        sendEvent("progress", { step: 5, total: 5, message: "Done!" });
 
         sendEvent("result", {
           leads: allVerified,
