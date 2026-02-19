@@ -10,6 +10,7 @@ import {
   Check,
   Database,
   SlidersHorizontal,
+  Mail,
 } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 
@@ -20,6 +21,8 @@ export default function SettingsPage() {
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
+  const [resendApiKey, setResendApiKey] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [maxResults, setMaxResults] = useState(10);
   const [saved, setSaved] = useState(false);
 
@@ -32,6 +35,8 @@ export default function SettingsPage() {
       setGeminiApiKey(settings.geminiApiKey ?? "");
       setSupabaseUrl(settings.supabaseUrl ?? "");
       setSupabaseAnonKey(settings.supabaseAnonKey ?? "");
+      setResendApiKey(settings.resendApiKey ?? "");
+      setRecipientEmail(settings.recipientEmail ?? "");
       setMaxResults(settings.maxResults ?? 10);
     }
   }, []);
@@ -66,6 +71,8 @@ export default function SettingsPage() {
         geminiApiKey,
         supabaseUrl,
         supabaseAnonKey,
+        resendApiKey,
+        recipientEmail,
         maxResults,
       })
     );
@@ -257,6 +264,46 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Email Notifications */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-1">
+              <Mail className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-base font-semibold text-white">Email Notifications</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-5">
+              Automatically email a CSV of generated leads after each run.
+              Requires a <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300">Resend</a> API key (free tier: 100 emails/day).
+              If left blank, emails won&apos;t be sent.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Resend API Key
+                </label>
+                <input
+                  type="password"
+                  value={resendApiKey}
+                  onChange={(e) => setResendApiKey(e.target.value)}
+                  placeholder="re_xxxxxxxxxx"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Recipient Email
+                </label>
+                <input
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  placeholder="doug@example.com"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Deployment Info */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
             <h3 className="text-base font-semibold text-white mb-1">Deployment</h3>
@@ -265,7 +312,8 @@ export default function SettingsPage() {
               via environment variables (<code className="text-gray-400">EXA_API_KEY</code>,{" "}
               <code className="text-gray-400">GOOGLE_GENERATIVE_AI_API_KEY</code>,{" "}
               <code className="text-gray-400">SUPABASE_URL</code>,{" "}
-              <code className="text-gray-400">SUPABASE_ANON_KEY</code>) in your
+              <code className="text-gray-400">SUPABASE_ANON_KEY</code>,{" "}
+              <code className="text-gray-400">RESEND_API_KEY</code>) in your
               Vercel project settings. User-provided keys take priority over env vars.
             </p>
           </div>

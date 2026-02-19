@@ -9,6 +9,7 @@ import {
   Search,
   Brain,
   Database,
+  Mail,
   CheckCircle2,
   Trash2,
 } from "lucide-react";
@@ -30,11 +31,12 @@ interface ProgressStep {
 
 const STORAGE_KEY = "scraper-dashboard-leads";
 
-const STEP_ICONS = [Search, Brain, Database, CheckCircle2];
+const STEP_ICONS = [Search, Brain, Database, Mail, CheckCircle2];
 const STEP_LABELS = [
   "Searching Exa",
   "AI Analysis",
   "Saving to DB",
+  "Emailing CSV",
   "Complete",
 ];
 
@@ -94,6 +96,8 @@ export default function Home() {
           supabaseUrl: settings.supabaseUrl || undefined,
           supabaseAnonKey: settings.supabaseAnonKey || undefined,
           maxResults: settings.maxResults || 10,
+          resendApiKey: settings.resendApiKey || undefined,
+          recipientEmail: settings.recipientEmail || undefined,
         }),
       });
 

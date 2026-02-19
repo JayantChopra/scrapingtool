@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Loader2,
   Users,
+  Trash2,
 } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import { LeadList } from "@/lib/types";
@@ -16,6 +17,7 @@ export default function ListsPage() {
   const [lists, setLists] = useState<LeadList[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function fetchLists() {
@@ -42,15 +44,56 @@ export default function ListsPage() {
     fetchLists();
   }, []);
 
+  async function handleDeleteAll() {
+    if (!confirm("Delete all lists and leads? This cannot be undone.")) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const stored = localStorage.getItem("scraper-settings");
+      const settings = stored ? JSON.parse(stored) : {};
+      const params = new URLSearchParams();
+      if (settings.supabaseUrl) params.set("supabaseUrl", settings.supabaseUrl);
+      if (settings.supabaseAnonKey) params.set("supabaseAnonKey", settings.supabaseAnonKey);
+
+      const res = await fetch(`/api/lists?${params.toString()}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      setLists([]);
+      localStorage.removeItem("scraper-dashboard-leads");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete lists");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-[family-name:var(--font-geist-sans)]">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="px-8 py-5 border-b border-gray-800">
-          <h2 className="text-xl font-semibold text-white">Lists</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Browse saved lead generation runs
-          </p>
+        <header className="px-8 py-5 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Lists</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Browse saved lead generation runs
+            </p>
+          </div>
+          {lists.length > 0 && !loading && (
+            <button
+              onClick={handleDeleteAll}
+              disabled={deleting}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-sm font-medium rounded-lg transition-colors border border-red-500/20 disabled:opacity-50"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {deleting ? "Deleting..." : "Delete All"}
+            </button>
+          )}
         </header>
 
         {error && (

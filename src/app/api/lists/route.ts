@@ -1,6 +1,27 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/supabase";
 
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const supabaseUrl = searchParams.get("supabaseUrl") || undefined;
+    const supabaseAnonKey = searchParams.get("supabaseAnonKey") || undefined;
+
+    const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
+
+    // Delete all join table entries, then all lists, then all orphaned leads
+    await supabase.from("list_leads").delete().neq("list_id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("lists").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("leads").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete all lists error:", error);
+    const message = error instanceof Error ? error.message : "Failed to delete lists";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
